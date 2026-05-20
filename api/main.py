@@ -143,6 +143,11 @@ def health():
     return {"status": "ok", "service": "reverie-companion-api"}
 
 
+@app.get("/")
+def root():
+    return health()
+
+
 @app.get("/profiles/me")
 def profile_me(user: dict[str, Any] = Depends(current_user)):
     db = require_client()
