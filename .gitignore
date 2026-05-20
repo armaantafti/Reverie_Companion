@@ -1,0 +1,13 @@
+node_modules/
+dist/
+__pycache__/
+*.pyc
+android/.gradle/
+android/local.properties
+android/app/build/
+android/build/
+android/keys/
+*.jks
+*.keystore
+.env
+.env.local
