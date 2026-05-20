@@ -1,0 +1,110 @@
+@media (min-width: 920px) and (hover: hover) and (pointer: fine) {
+  body.browser-shell {
+    background:
+      radial-gradient(circle at 16% 12%, rgba(68, 154, 220, 0.22), transparent 30%),
+      radial-gradient(circle at 86% 0%, rgba(31, 78, 121, 0.16), transparent 24%),
+      linear-gradient(160deg, #f7fbff 0%, #e9f2fa 52%, #dfeaf4 100%);
+  }
+
+  body.browser-shell::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 88px;
+    background: rgba(255, 255, 255, 0.76);
+    border-bottom: 1px solid rgba(16, 42, 67, 0.08);
+    backdrop-filter: blur(18px);
+    z-index: -1;
+  }
+
+  body.browser-shell .app-shell {
+    width: min(1180px, calc(100vw - 56px));
+    max-width: none;
+    padding: 32px 0 56px;
+  }
+
+  body.browser-shell .top-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 28px;
+    padding: 30px 34px;
+    border-radius: 24px;
+  }
+
+  body.browser-shell .top-card .eyebrow {
+    grid-column: 1 / -1;
+    margin-bottom: -8px;
+  }
+
+  body.browser-shell .top-card h1 {
+    font-size: clamp(2.4rem, 4vw, 4.3rem);
+    max-width: 760px;
+  }
+
+  body.browser-shell .top-card .subtle {
+    justify-self: end;
+    max-width: 340px;
+    text-align: right;
+    font-size: 1.02rem;
+  }
+
+  body.browser-shell .profile-strip {
+    border-radius: 22px;
+    padding: 14px 18px;
+  }
+
+  body.browser-shell .quick-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body.browser-shell .grid-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  body.browser-shell .big-button {
+    min-height: 156px;
+    border-radius: 24px;
+    transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  }
+
+  body.browser-shell .big-button:hover {
+    transform: translateY(-3px);
+    background: #14395c;
+    box-shadow: 0 22px 38px rgba(16, 42, 67, 0.24);
+  }
+
+  body.browser-shell .panel {
+    border-radius: 24px;
+    padding: 32px;
+  }
+
+  body.browser-shell .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.browser-shell .stack {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  body.browser-shell .list-card,
+  body.browser-shell .date-card,
+  body.browser-shell .call-card,
+  body.browser-shell .reminder-card,
+  body.browser-shell .person-card {
+    margin-top: 0;
+  }
+
+  body.browser-shell .button-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body.browser-shell .back-button {
+    width: auto;
+    min-width: 180px;
+    padding-inline: 22px;
+  }
+}
