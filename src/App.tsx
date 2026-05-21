@@ -31,6 +31,7 @@ import {
   addReminder,
   createCaregiverInvite,
   createOwnProfile,
+  extractObjectLocation,
   getCurrentUser,
   loadCachedProfileData,
   loadCaregiverLinks,
@@ -351,12 +352,26 @@ function App() {
       <Notice error={error} message={message} loading={loading} />
 
       {section === 'home' && (
-        <HomeScreen
-          reminders={upcomingReminders}
-          memories={data.memories}
-          board={todayBoard}
-          onNavigate={setSection}
-        />
+        <>
+          {activeProfile && (
+            <VoiceAssistantPanel
+              profile={activeProfile}
+              userId={userId}
+              data={data}
+              voiceEnabled={voiceEnabled}
+              onNavigate={setSection}
+              onRefresh={refreshData}
+              onError={setError}
+              onMessage={setMessage}
+            />
+          )}
+          <HomeScreen
+            reminders={upcomingReminders}
+            memories={data.memories}
+            board={todayBoard}
+            onNavigate={setSection}
+          />
+        </>
       )}
 
       {section !== 'home' && <button className="back-button" onClick={() => setSection('home')}><Home size={22} /> Back home</button>}
@@ -633,6 +648,82 @@ function HomeScreen({ reminders, memories, board, onNavigate }: {
 
 function SummaryTile({ label, value }: { label: string; value: number }) {
   return <article><strong>{value}</strong><span>{label}</span></article>;
+}
+
+function VoiceAssistantPanel({ profile, userId, data, voiceEnabled, onNavigate, onRefresh, onError, onMessage }: {
+  profile: Profile;
+  userId: string;
+  data: ProfileData;
+  voiceEnabled: boolean;
+  onNavigate: (section: Section) => void;
+  onRefresh: () => Promise<void>;
+  onError: (message: string) => void;
+  onMessage: (message: string) => void;
+}) {
+  const [transcript, setTranscript] = useState('');
+  const [listening, setListening] = useState(false);
+  const [processing, setProcessing] = useState(false);
+
+  const processCommand = async (spokenText: string) => {
+    if (!spokenText.trim()) return;
+    setProcessing(true);
+    try {
+      const result = await handleNaturalVoiceCommand(spokenText, profile, userId, data);
+      if (result.section) onNavigate(result.section);
+      await onRefresh();
+      onMessage(result.response);
+      speak(result.response, voiceEnabled);
+    } catch (exc) {
+      const message = readError(exc);
+      onError(message);
+      speak('Sorry, I could not complete that. Please try again.', voiceEnabled);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const startVoiceCommand = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      onError('Voice input is not available on this device. Please type the memory instead.');
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = profile.preferred_language || 'en-IN';
+    recognition.interimResults = false;
+    recognition.onstart = () => {
+      setListening(true);
+      setTranscript('');
+    };
+    recognition.onresult = async (event: any) => {
+      const spokenText = event.results[0][0].transcript;
+      setTranscript(spokenText);
+      await processCommand(spokenText);
+    };
+    recognition.onerror = () => {
+      setListening(false);
+      onError('I could not hear clearly. Please try again.');
+    };
+    recognition.onend = () => setListening(false);
+    recognition.start();
+  };
+
+  return (
+    <section className="panel voice-command-panel">
+      <p className="eyebrow">Voice assistant</p>
+      <h2>Say what you need</h2>
+      <p className="subtle">Ask a question, create a reminder, save where something is kept, or capture a memory.</p>
+      <button className="primary-wide" onClick={startVoiceCommand} disabled={listening || processing}>
+        <Mic /> {listening ? 'Listening...' : processing ? 'Processing...' : 'Press and speak'}
+      </button>
+      {transcript && <div className="answer-card"><strong>You said</strong><p>{transcript}</p></div>}
+      <div className="voice-examples">
+        <span>“Remind me to take medicine tomorrow at 9 am”</span>
+        <span>“I kept my glasses near the sofa”</span>
+        <span>“Where are my keys?”</span>
+      </div>
+    </section>
+  );
 }
 
 function RememberPanel({ profile, userId, voiceEnabled, onSaved, onError }: {
@@ -1121,6 +1212,164 @@ function ListCard({ title, body }: { title: string; body?: string | null }) {
 
 function readError(exc: unknown) {
   return exc instanceof Error ? exc.message : 'Something went wrong. Please try again.';
+}
+
+type VoiceCommandResult = {
+  response: string;
+  section?: Section;
+};
+
+async function handleNaturalVoiceCommand(text: string, profile: Profile, userId: string, data: ProfileData): Promise<VoiceCommandResult> {
+  const clean = text.trim().replace(/\s+/g, ' ');
+  const lower = clean.toLowerCase();
+
+  if (isQuestionCommand(lower)) {
+    const query = clean.replace(/^(reverie|please|can you|could you)\s+/i, '').replace(/[?.!]+$/, '');
+    const result = searchProfileData(query, data);
+    return {
+      response: result.answer || 'I could not find that yet. You can save it or ask a caregiver to add it.',
+      section: 'ask'
+    };
+  }
+
+  const objectLocation = extractObjectLocation(clean);
+  if (objectLocation && !/^where\s+(is|are)\b/i.test(clean)) {
+    await upsertObjectLocation(profile.id, userId, objectLocation.object_name, objectLocation.location_text);
+    await addMemory(profile.id, userId, clean);
+    return {
+      response: `Saved. Your ${objectLocation.object_name} is ${objectLocation.location_text}.`,
+      section: 'where'
+    };
+  }
+
+  const reminder = parseSpokenReminder(clean);
+  if (reminder) {
+    await addReminder(profile.id, userId, {
+      title: reminder.title,
+      detail: clean,
+      category: reminder.category,
+      scheduled_date: reminder.scheduled_date,
+      scheduled_time: reminder.scheduled_time,
+      repeat_rule: reminder.repeat_rule,
+      escalation_minutes: 10,
+      caregiver_escalation_enabled: true
+    });
+    return {
+      response: `Reminder saved for ${formatVoiceDate(reminder.scheduled_date)} at ${formatVoiceTime(reminder.scheduled_time)}.`,
+      section: 'reminders'
+    };
+  }
+
+  await addMemory(profile.id, userId, clean);
+  return {
+    response: 'I have saved this memory.',
+    section: 'remember'
+  };
+}
+
+function isQuestionCommand(lower: string) {
+  return /^(where|what|when|who|which|how)\b/.test(lower)
+    || /\b(where did i keep|where are|where is|find|search for|do i have|what did i save)\b/.test(lower);
+}
+
+function parseSpokenReminder(text: string) {
+  const lower = text.toLowerCase();
+  if (!/\b(remind me|reminder|remember to|i need to|need to|appointment|medicine|tablet|doctor)\b/.test(lower)) {
+    return null;
+  }
+
+  const dateValue = parseSpokenDate(lower);
+  const timeValue = parseSpokenTime(lower);
+  if (!dateValue || !timeValue) return null;
+
+  let title = text
+    .replace(/^(please\s+)?(remind me to|remind me|set a reminder to|set a reminder|remember to|i need to|need to)\s+/i, '')
+    .replace(/\b(today|tomorrow|day after tomorrow)\b.*$/i, '')
+    .replace(/\b(on|at)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b.*$/i, '')
+    .replace(/\b(at|around)\s+\d{1,2}([:.]\d{2})?\s*(am|pm)?\b.*$/i, '')
+    .replace(/[?.!]+$/, '')
+    .trim();
+
+  if (!title) title = text.slice(0, 80);
+
+  return {
+    title: title.slice(0, 160),
+    scheduled_date: dateValue,
+    scheduled_time: timeValue,
+    category: inferReminderCategory(lower),
+    repeat_rule: inferRepeatRule(lower)
+  };
+}
+
+function parseSpokenDate(lower: string) {
+  const today = new Date();
+  const next = new Date(today);
+
+  if (/\bday after tomorrow\b/.test(lower)) {
+    next.setDate(today.getDate() + 2);
+    return toLocalDateInput(next);
+  }
+  if (/\btomorrow\b/.test(lower)) {
+    next.setDate(today.getDate() + 1);
+    return toLocalDateInput(next);
+  }
+  if (/\btoday\b/.test(lower)) {
+    return toLocalDateInput(next);
+  }
+
+  const weekdayMatch = lower.match(/\b(?:on\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
+  if (weekdayMatch) {
+    const targetDay = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(weekdayMatch[1]);
+    const currentDay = today.getDay();
+    const daysAhead = (targetDay - currentDay + 7) % 7 || 7;
+    next.setDate(today.getDate() + daysAhead);
+    return toLocalDateInput(next);
+  }
+
+  return null;
+}
+
+function parseSpokenTime(lower: string) {
+  const match = lower.match(/\b(?:at|around)?\s*(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)\b/);
+  if (!match) return null;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2] || '0');
+  const meridiem = match[3];
+  if (meridiem === 'pm' && hours < 12) hours += 12;
+  if (meridiem === 'am' && hours === 12) hours = 0;
+  if (hours > 23 || minutes > 59) return null;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function inferReminderCategory(lower: string): ReminderCategory {
+  if (/\b(medicine|tablet|pill|dose)\b/.test(lower)) return 'medicine';
+  if (/\b(doctor|appointment|clinic|hospital|meeting)\b/.test(lower)) return 'appointment';
+  if (/\b(water|drink|hydration)\b/.test(lower)) return 'hydration';
+  if (/\b(breakfast|lunch|dinner|meal|eat)\b/.test(lower)) return 'meal';
+  return 'custom';
+}
+
+function inferRepeatRule(lower: string) {
+  if (/\bevery day|daily\b/.test(lower)) return 'daily';
+  if (/\bevery week|weekly\b/.test(lower)) return 'weekly';
+  if (/\bevery month|monthly\b/.test(lower)) return 'monthly';
+  return 'none';
+}
+
+function toLocalDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatVoiceDate(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function formatVoiceTime(value: string) {
+  const [hour, minute] = value.split(':').map(Number);
+  return new Date(2000, 0, 1, hour, minute).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 export default App;
