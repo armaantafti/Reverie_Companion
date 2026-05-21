@@ -69,6 +69,27 @@ SUPABASE_SERVICE_ROLE_KEY=
 ALLOWED_ORIGINS=https://your-frontend-domain.com,http://localhost:5173
 ```
 
+## Render deployment
+
+This repo has two Render services:
+
+1. `reverie-companion-web` - the Vite/React frontend users open in a browser.
+2. `reverie-companion-api` - the FastAPI backend. Opening this service directly returns health JSON such as `{"status":"ok","service":"reverie-companion-api"}`.
+
+For the frontend static site, set:
+
+```env
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_API_BASE_URL=https://your-companion-api.onrender.com
+```
+
+For the API service, set `ALLOWED_ORIGINS` to include the frontend URL, for example:
+
+```env
+ALLOWED_ORIGINS=https://your-companion-web.onrender.com,http://localhost:5173
+```
+
 ## Supabase setup
 
 Run `supabase/schema.sql` in the Supabase SQL editor. It creates tables for profiles, caregiver links, memories, object locations, daily board items, reminders, reminder acknowledgements, photo cards, and emergency contacts.
