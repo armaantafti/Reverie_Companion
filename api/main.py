@@ -1,9 +1,12 @@
 import os
 from datetime import date, datetime, time, timezone
+from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from supabase import Client, create_client
 
@@ -19,6 +22,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+DIST_DIR = ROOT_DIR / "dist"
+ASSETS_DIR = DIST_DIR / "assets"
+
+if ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
 client: Client | None = create_client(SUPABASE_URL, SERVER_DB_KEY) if SUPABASE_URL and SERVER_DB_KEY else None
 
@@ -145,6 +155,9 @@ def health():
 
 @app.get("/")
 def root():
+    index_file = DIST_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
     return health()
 
 
@@ -404,3 +417,11 @@ def search(profile_id: str, q: str, user: dict[str, Any] = Depends(current_user)
     elif reminders:
         answer = f"{reminders[0]['title']} is scheduled for {reminders[0]['scheduled_date']} at {reminders[0]['scheduled_time']}."
     return {"answer": answer, "memories": memories, "object_locations": objects, "photo_cards": photos, "reminders": reminders}
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+def spa_fallback(full_path: str):
+    index_file = DIST_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    raise HTTPException(status_code=404, detail="Not Found")

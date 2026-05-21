@@ -71,24 +71,24 @@ ALLOWED_ORIGINS=https://your-frontend-domain.com,http://localhost:5173
 
 ## Render deployment
 
-This repo has two Render services:
+This repo uses the same single-service pattern as the main Reverie app:
 
-1. `reverie-companion-web` - the Vite/React frontend users open in a browser.
-2. `reverie-companion-api` - the FastAPI backend. Opening this service directly returns health JSON such as `{"status":"ok","service":"reverie-companion-api"}`.
+1. Render builds the Vite/React frontend into `dist/`.
+2. Render installs the FastAPI backend from `api/requirements.txt`.
+3. FastAPI serves both the API routes and the built frontend from the same URL.
 
-For the frontend static site, set:
+For the Render service, set:
 
 ```env
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
-VITE_API_BASE_URL=https://your-companion-api.onrender.com
+VITE_API_BASE_URL=https://your-companion-service.onrender.com
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+ALLOWED_ORIGINS=https://your-companion-service.onrender.com,http://localhost:5173
 ```
 
-For the API service, set `ALLOWED_ORIGINS` to include the frontend URL, for example:
-
-```env
-ALLOWED_ORIGINS=https://your-companion-web.onrender.com,http://localhost:5173
-```
+Opening `/` shows the Companion frontend. Opening `/health` shows API health JSON.
 
 ## Supabase setup
 
