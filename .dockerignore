@@ -1,0 +1,14 @@
+.git
+node_modules/
+dist/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+*.log
+android/.gradle/
+android/app/build/
+android/build/
+android/keys/
+*.jks
+*.keystore

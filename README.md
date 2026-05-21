@@ -71,13 +71,20 @@ ALLOWED_ORIGINS=https://your-frontend-domain.com,http://localhost:5173
 
 ## Render deployment
 
-This repo uses the same single-service pattern as the main Reverie app:
+This repo uses the same Docker single-service pattern as the main Reverie app:
 
-1. Render builds the Vite/React frontend into `dist/`.
-2. Render installs the FastAPI backend from `api/requirements.txt`.
+1. Docker builds the Vite/React frontend into `dist/`.
+2. Docker installs the FastAPI backend from `api/requirements.txt`.
 3. FastAPI serves both the API routes and the built frontend from the same URL.
 
-For the Render service, set:
+For the Render service, set Language/Runtime to Docker and use:
+
+```text
+Dockerfile Path: ./Dockerfile
+Docker Build Context Directory: .
+```
+
+Set these environment variables:
 
 ```env
 VITE_SUPABASE_URL=
